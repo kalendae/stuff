@@ -104,6 +104,21 @@ javascript: (function() {
     return es;
   }
 
+  function id_for_element(e) {
+    return parseInt(e.elementId.split("2500000000")[1].replace(/\D/g, ''), 10);
+  }
+
+  function element_exist_in_element_array(e, arr) {
+    var exist = false;
+    $.each(arr, function(i, v) {
+      if (v != undefined && e.elementId == v.elementId) {
+        exist = true;
+        return true;
+      }
+    });
+    return exist;
+  }
+
   function pickup_closest_item(info) {
     var picked_up = false;
     require(["map_utils", "state"], function(m, state) {
@@ -124,6 +139,23 @@ javascript: (function() {
       }
     });
     return picked_up;
+  }
+
+  function monsters_in_vicinity(meters) {
+    var exist = false;
+    require(["map_utils", "state"], function(m, state) {
+      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter) {
+          var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
+          if (dist < meters) {
+            exist = true;
+            return;
+          }
+        }
+      });
+    });
+    return exist;
   }
 
   function attack_closest_monster() {
@@ -149,9 +181,9 @@ javascript: (function() {
     var exist = false;
     require(["map_utils"], function(m) {
       $.each(name_array, function(i, n) {
-        $.each(m.markerElementMap, function(k,v){
+        $.each(m.markerElementMap, function(k, v) {
           if ($.grep(v.getElement().displayLayers,
-            function(x,j) {
+            function(x, j) {
               return (x.info.indexOf(n) != -1)
             }).length > 0) {
             exist = true;
@@ -168,7 +200,7 @@ javascript: (function() {
 
   function do_attack_immediate_monsters() {
     var attacked = false;
-    require(["map_utils", "state", "net"], function(m, state, net) {
+    require(["map_utils", "state"], function(m, state) {
       window.immediate_monsters = [];
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
@@ -190,23 +222,6 @@ javascript: (function() {
     });
     return attacked;
   }
-
-
-  function id_for_element(e) {
-    return parseInt(e.elementId.split("2500000000")[1].replace(/\D/g, ''), 10);
-  }
-
-  function element_exist_in_element_array(e, arr) {
-    var exist = false;
-    $.each(arr, function(i, v) {
-      if (v != undefined && e.elementId == v.elementId) {
-        exist = true;
-        return true;
-      }
-    });
-    return exist;
-  }
-
 
   function do_random_jump() {
     var jumped = false;
@@ -256,7 +271,6 @@ javascript: (function() {
 
   }
 
-
   function do_jump_to_next_flag() {
     var jumped = false;
     require(["map_utils", "state", "net"], function(m, state, net) {
@@ -305,10 +319,32 @@ javascript: (function() {
     return jumped;
   }
 
-
   function do_auto_hunt() {
-
-
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    if (pickup_closest_item('backpack')) {
+      return;
+    }
+    if (check_for_monsters(['siren','yanglong'])) {
+      huntTimer = -6;
+      do_jump_to_next_flag();
+      return;
+    }
+    if (!is_aggressive()) {
+      var attacked = attack_closest_monster();
+      huntTimer = -16;
+      if (!attacked) {
+        huntTimer = -6;
+        do_jump_to_next_flag();
+      }
+      return
+    }
+    if (!monsters_in_vicinity(125)) {
+      var attacked = attack_closest_monster();
+      huntTimer = -16;
+      return
+    }
   }
 
 
