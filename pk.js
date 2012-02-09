@@ -1,4 +1,16 @@
 javascript: (function() {
+
+  window.flag_history = [];
+  var auto_chop = false;
+  var auto_pick = false;
+  var auto_build = false;
+  var auto_hunt = false;
+  var chopTimer = 9;
+  var pickTimer = 9;
+  var buildTimer = 0;
+  var huntTimer = 0;
+  var uTimer = 0;
+
   function do_action(action_name) {
     require(["state", "net"], function(state, net) {
       var c_id = state.getYouLocationElement().elementId;
@@ -21,16 +33,146 @@ javascript: (function() {
     });
   }
 
+  function element_has_action(e, action) {
+    var has_action = false;
+    if ($.grep(e.actions,
+      function(n, i) {
+        return (n.command == action);
+      }).length > 0) {
+      has_action = true;
+    }
+    return has_action;
+  }
+
+  function element_has_info(e, info) {
+    var has_info = false;
+    if ($.grep(e.displayLayers,
+      function(n, i) {
+        return (n.info == info);
+      }).length > 0) {
+      has_info = true;
+    }
+    return has_info;
+  }
+
+  function is_aggressive() {
+    return ($("#interface-status-new #interface-picture img[src='http://content.parallelkingdom.com/status_aggressive.png']").length > 0);
+  }
+
+  function is_moving() {
+    moving = false;
+    require(["map_utils", "state"], function(m, state) {
+      var y = state.getYouLocationElement();
+      $.each(m._movingMarkers, function(k, v) {
+        if (v.marker && v.marker.getElement && v.marker.getElement().elementId == y.elementId) {
+          moving = true;
+          return;
+        }
+      });
+    });
+    return moving;
+  }
+
+  function is_busy() {
+    var busy = false;
+    require(["state"], function(state) {
+      busy = state.getYouLocationElement().timerTimeLeft > 0;
+    });
+    return busy;
+  }
+
+  function get_element_action(e, action) {
+    var target_action = $.grep(e.actions, function(n, i) {
+      return (n.command == action);
+    })[0];
+    return target_action;
+  }
+
+  function sort_elements_by_distance(m, you, es) {
+    var my_pos = m.getMarkerForElement(you).getPosition();
+    es.sort(function(a, b) {
+      var a_pos = m.getMarkerForElement(a).getPosition();
+      var b_pos = m.getMarkerForElement(b).getPosition();
+      var a_dis = google.maps.geometry.spherical.computeDistanceBetween(my_pos, a_pos);
+      var b_dis = google.maps.geometry.spherical.computeDistanceBetween(my_pos, b_pos);
+      if (a_dis < b_dis) {
+        return -1;
+      } else {
+        return 1;
+      }
+    });
+    return es;
+  }
+
+  function pickup_closest_item(info) {
+    var picked_up = false;
+    require(["map_utils", "state"], function(m, state) {
+      target_items = [];
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_info(v.getElement(), info)) {
+          target_items.push(v.getElement());
+        }
+      });
+      if (target_items.length > 0) {
+        target_items = sort_elements_by_distance(m, state.getYouLocationElement(), target_items);
+        var target_action = get_element_action(target_items[0], 'PICKUP_ALL');
+        if (!target_action) {
+          target_action = get_element_action(target_items[0], 'PICKUP');
+        }
+        $(document).trigger("action.element.doAction", [target_items[0], target_action]);
+        picked_up = true;
+      }
+    });
+    return picked_up;
+  }
+
+  function attack_closest_monster() {
+    var attacked = false;
+    require(["map_utils", "state"], function(m, state) {
+      target_mobs = [];
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter) {
+          target_mobs.push(v.getElement());
+        }
+      });
+      if (target_mobs.length > 0) {
+        target_mobs = sort_elements_by_distance(m, state.getYouLocationElement(), target_mobs);
+        var target_action = get_element_action(target_mobs[0], 'ATTACK');
+        $(document).trigger("action.element.doAction", [target_mobs[0], target_action]);
+        attacked = true;
+      }
+    });
+    return attacked;
+  }
+
+  function check_for_monsters(name_array) {
+    var exist = false;
+    require(["map_utils"], function(m) {
+      $.each(name_array, function(i, n) {
+        $.each(m.markerElementMap, function(k,v){
+          if ($.grep(v.getElement().displayLayers,
+            function(x,j) {
+              return (x.info.indexOf(n) != -1)
+            }).length > 0) {
+            exist = true;
+            return;
+          }
+          if (exist) {
+            return;
+          }
+        });
+      });
+    });
+    return exist;
+  }
+
   function do_attack_immediate_monsters() {
     var attacked = false;
     require(["map_utils", "state", "net"], function(m, state, net) {
       window.immediate_monsters = [];
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
-        if ($.grep(v.getElement().actions,
-          function(n, i) {
-            return (n.command == 'ATTACK' && !n._isCharacter);
-          }).length > 0) {
+        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter) {
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < 50) {
             window.immediate_monsters.push(v.getElement());
@@ -65,8 +207,6 @@ javascript: (function() {
     return exist;
   }
 
-
-  window.flag_history = [];
 
   function do_random_jump() {
     var jumped = false;
@@ -192,11 +332,6 @@ javascript: (function() {
     });
   }
 
-
-  var auto_chop = false;
-  var auto_pick = false;
-  var auto_build = false;
-  var auto_hunt = false;
 
   function pick_or_tend_closest_tree() {
     var picked = false;
@@ -354,12 +489,6 @@ javascript: (function() {
   }
 
 
-  var chopTimer = 9;
-  var pickTimer = 9;
-  var buildTimer = 0;
-  var huntTimer = 0;
-  var uTimer = 0;
-
   function update_status() {
     if ($('#sstatus').length < 1) {
       $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;\">default</div>");
@@ -417,7 +546,7 @@ javascript: (function() {
     }
     if (auto_hunt) {
       huntTimer += 1;
-      if (huntTimer > 3) {
+      if (huntTimer > 1) {
         huntTimer = 0;
         do_auto_hunt();
       }
