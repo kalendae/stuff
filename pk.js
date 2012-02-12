@@ -340,7 +340,11 @@ javascript: (function() {
       window.next_flags = [];
       var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "WARP_TO_BUILDING") && v.getElement().name == "kalendae") {
+        if ($.grep(v.getElement().actions,
+          function(n, i) {
+            return (n.command == 'WARP_TO_BUILDING');
+          }).length > 0) {
+          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate") {
             var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
             if (dist < 10) {
               window.current_flag.push(v.getElement());
@@ -435,6 +439,29 @@ javascript: (function() {
     });
   }
 
+  function do_auto_pick() {
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    var picked = pick_or_tend_closest_tree();
+    if (!picked) {
+      pickTimer = -8;
+      do_jump_to_next_flag();
+    }
+  }
+
+  function do_auto_chop() {
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    var chopped = act_on_closest_tree();
+    if (!chopped) {
+      chopTimer = -8;
+      do_jump_to_next_flag();
+    }
+  }
+
+
 
   function pick_or_tend_closest_tree() {
     var picked = false;
@@ -499,22 +526,6 @@ javascript: (function() {
       });
     }
     return picked;
-  }
-
-  function do_auto_pick() {
-    var picked = pick_or_tend_closest_tree();
-    if (!picked) {
-      pickTimer = -8;
-      do_random_jump();
-    }
-  }
-
-  function do_auto_chop() {
-    var chopped = act_on_closest_tree();
-    if (!chopped) {
-      chopTimer = -8;
-      do_random_jump();
-    }
   }
 
   function act_on_closest_tree() {
@@ -594,28 +605,28 @@ javascript: (function() {
 
   function update_status() {
     if ($('#sstatus').length < 1) {
-      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;\">default</div>");
+      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:9px;\">default</div>");
     }
     var str = "U: " + uTimer + " ";
     if (auto_chop) {
-      str += "chop: on " + chopTimer + " ";
+      str += "<span style=\"color:green;font-weight:bold;\">chop:" + chopTimer + "</span>";
     } else {
-      str += "chop: off " + chopTimer + " ";
+      str += "<span style=\"color:#999;\">chop:" + chopTimer + "</span>"
     }
     if (auto_pick) {
-      str += "pick: on " + pickTimer + " ";
+      str += "<span style=\"color:green;font-weight:bold;\">pick:" + pickTimer + "</span>"
     } else {
-      str += "pick: off " + pickTimer + " ";
+      str += "<span style=\"color:#999;\">pick:" + pickTimer + "</span>"
     }
     if (auto_build) {
-      str += "build: on " + buildTimer + " ";
+      str += "<span style=\"color:green;font-weight:bold;\">build:" + buildTimer + "</span>"
     } else {
-      str += "build: off " + buildTimer + " ";
+      str += "<span style=\"color:#999;\">build:" + buildTimer + "</span>"
     }
     if (auto_hunt) {
-      str += "hunt: on " + huntTimer + " ";
+      str += "<span style=\"color:green;font-weight:bold;\">hunt:" + huntTimer + "</span>"
     } else {
-      str += "hunt: off " + huntTimer + " ";
+      str += "<span style=\"color:#999;\">hunt:" + huntTimer + "</span>"
     }
     $('#sstatus').html(str);
   }
@@ -628,14 +639,14 @@ javascript: (function() {
     check_health();
     if (auto_chop) {
       chopTimer += 1;
-      if (chopTimer > 3) {
+      if (chopTimer > 0) {
         chopTimer = 0;
         do_auto_chop();
       }
     }
     if (auto_pick) {
       pickTimer += 1;
-      if (pickTimer > 2) {
+      if (pickTimer > 0) {
         pickTimer = 0;
         do_auto_pick();
       }
