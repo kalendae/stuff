@@ -1,9 +1,9 @@
-/* todos:
-  1) char specific eg some needs to skip black_pool but not others
-  2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
-  3) auto send gold when over certain limit
- */
 javascript: (function() {
+/* todos:
+ 1) char specific eg some needs to skip black_pool but not others
+ 2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
+ 3) auto send gold when over certain limit
+ */
 
   window.flag_history = [];
   var auto_chop = false;
@@ -27,7 +27,7 @@ javascript: (function() {
     });
   }
 
-  function do_action_to(action_name,ele) {
+  function do_action_to(action_name, ele) {
     require(["net"], function(net) {
       net.post({
         fullName: "DoAction1",
@@ -91,7 +91,7 @@ javascript: (function() {
   function is_taunt_available() {
     var avail = true;
     require(["state"], function(state) {
-      var action = get_element_action(state.getYouLocationElement(),'TAUNT');
+      var action = get_element_action(state.getYouLocationElement(), 'TAUNT');
       if (action) {
         if (action.displayString.indexOf('Cooldown') != -1) {
           avail = false;
@@ -149,12 +149,20 @@ javascript: (function() {
     return exist;
   }
 
+  function current_health_percent() {
+    var p = 100;
+    require(["state"], function(state) {
+      p = Math.floor(state.getYouLocationElement().hp * 100.0 / state.getYouLocationElement().hpTotal);
+    });
+    return p;
+  }
+
   function repair_gear_if_needed(limit) {
     var repaired = false;
     require(["map_utils", "state","net"], function(m, state, net) {
-      $.each(state.data.items, function(i,n){
-        if (element_has_action(n,"REPAIR_FOR_GOLD") && (n.displayString.indexOf("Equipped") != -1) && parseInt(n.displayString.match(/\s(\d+)%/)[1]) < limit) {
-          do_action_to("REPAIR_FOR_GOLD",n);
+      $.each(state.data.items, function(i, n) {
+        if (element_has_action(n, "REPAIR_FOR_GOLD") && (n.displayString.indexOf("Equipped") != -1) && parseInt(n.displayString.match(/\s(\d+)%/)[1]) < limit) {
+          do_action_to("REPAIR_FOR_GOLD", n);
           repaired = true;
           return;
         }
@@ -190,7 +198,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter && !element_has_info(v.getElement(),"buoy")) {
+        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < meters) {
             exist = true;
@@ -206,7 +214,7 @@ javascript: (function() {
     var count = 0;
     require(["map_utils"], function(m) {
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(),"buoy")) {
+        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
           count += 1;
         }
       });
@@ -219,7 +227,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(),"buoy")) {
+        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
           target_mobs.push(v.getElement());
         }
       });
@@ -352,6 +360,7 @@ javascript: (function() {
               window.my_flags.push(v.getElement());
             }
           }
+        }
       });
       $.each(window.my_flags, function(i, v) {
         if (id_for_element(v) > id_for_element(window.current_flag[0])) {
@@ -370,7 +379,7 @@ javascript: (function() {
         if (window.next_flags.length > skips) {
           target_element = window.next_flags[skips];
         }
-        var target_action = get_element_action(target_element,'WARP_TO_BUILDING');
+        var target_action = get_element_action(target_element, 'WARP_TO_BUILDING');
         $(document).trigger("action.element.doAction", [target_element, target_action]);
         jumped = true;
       }
@@ -385,13 +394,19 @@ javascript: (function() {
     if (pickup_closest_item('backpack')) {
       return;
     }
+    if (current_health_percent() < 80) {
+      return;
+    }
+    if (uTimer % 500 == 0) {
+      do_move(50,Math.floor(Math.random() * 360));
+    }
     if (check_for_monsters(['siren','yanglong'])) {
       huntTimer = -9;
       do_jump_to_next_flag();
       return;
     }
     if (!is_aggressive()) {
-      if(repair_gear_if_needed(50)) {
+      if (repair_gear_if_needed(50)) {
         huntTimer = -10;
         return;
       }
@@ -460,7 +475,6 @@ javascript: (function() {
       do_jump_to_next_flag();
     }
   }
-
 
 
   function pick_or_tend_closest_tree() {
@@ -605,7 +619,7 @@ javascript: (function() {
 
   function update_status() {
     if ($('#sstatus').length < 1) {
-      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:11px;\">default</div>");
+      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:12px;\">default</div>");
     }
     var str = "U: " + uTimer + " ";
     if (auto_chop) {
@@ -674,7 +688,7 @@ javascript: (function() {
     if (noHealTimer < 1) {
       noHealTimer = 0;
       require(["state"], function(state) {
-        if (state.getYouLocationElement().hp < 80) {
+        if (current_health_percent() < 80) {
           do_self_action('HEAL');
           noHealTimer = 20 * 2;
         }
@@ -684,7 +698,15 @@ javascript: (function() {
 
   /* move based on your location */
   function do_move(meters, degrees) {
-
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      var you = state.getYouLocationElement();
+      var you_marker = m.getMarkerForElement(you);
+      var dest = new google.maps.geometry.spherical.computeOffset(you_marker.getPosition(), meters, degrees);
+      you.movementSpeed > 0 && (m.startMoveMarker(you_marker, dest, function() {
+      }),require(["game"], function(game) {
+        game.movePlayerAnalog(you, dest, m._currentTargetName)
+      }));
+    });
   }
 
   /* move based on center location */
@@ -809,4 +831,7 @@ javascript: (function() {
     }
   });
   auto_do_tick();
-})();
+}
+
+  )
+  ();
