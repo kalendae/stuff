@@ -534,7 +534,7 @@ javascript: (function() {
 
   function update_status() {
     if ($('#sstatus').length < 1) {
-      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:9px;\">default</div>");
+      $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:11px;\">default</div>");
     }
     var str = "U: " + uTimer + " ";
     if (auto_chop) {
@@ -611,6 +611,12 @@ javascript: (function() {
     }
   }
 
+  /* move based on your location */
+  function do_move(meters, degrees) {
+
+  }
+
+  /* move based on center location */
   function do_move_to(meters, degrees) {
     require(["map_utils", "state", "net"], function(m, state, net) {
       var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);

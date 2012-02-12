@@ -29,7 +29,7 @@
       <file leaf-file-name="pk.js" pinned="false" current="true" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pk.js">
           <provider selected="true" editor-type-id="text-editor">
-            <state line="295" column="46" selection-start="9182" selection-end="9182" vertical-scroll-proportion="0.37017167">
+            <state line="324" column="5" selection-start="10000" selection-end="10000" vertical-scroll-proportion="0.11480687">
               <folding />
             </state>
           </provider>
@@ -140,6 +140,7 @@
     <frame x="95" y="-4" width="1829" height="1088" extended-state="6" />
     <editor active="true" />
     <layout>
+      <window_info id="Messages" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="-1" side_tool="false" content_ui="tabs" />
       <window_info id="Changes" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Structure" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" weight="0.25" sideWeight="0.5" order="1" side_tool="true" content_ui="tabs" />
@@ -182,7 +183,7 @@
     <option name="CHECK_COMMIT_MESSAGE_SPELLING" value="true" />
     <option name="DEFAULT_PATCH_EXTENSION" value="patch" />
     <option name="FORCE_NON_EMPTY_COMMENT" value="false" />
-    <option name="LAST_COMMIT_MESSAGE" />
+    <option name="LAST_COMMIT_MESSAGE" value="pick and hunt are no longer random" />
     <option name="MAKE_NEW_CHANGELIST_ACTIVE" value="true" />
     <option name="OPTIMIZE_IMPORTS_BEFORE_PROJECT_COMMIT" value="false" />
     <option name="CHECK_FILES_UP_TO_DATE_BEFORE_COMMIT" value="false" />
@@ -195,6 +196,7 @@
     <option name="UPDATE_GROUP_BY_CHANGELIST" value="false" />
     <option name="SHOW_FILE_HISTORY_AS_TREE" value="false" />
     <option name="FILE_HISTORY_SPLITTER_PROPORTION" value="0.6" />
+    <MESSAGE value="pick and hunt are no longer random" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -209,7 +211,7 @@
   <component name="editorHistoryManager">
     <entry file="file://$PROJECT_DIR$/pk.js">
       <provider selected="true" editor-type-id="text-editor">
-        <state line="295" column="46" selection-start="9182" selection-end="9182" vertical-scroll-proportion="0.37017167">
+        <state line="324" column="5" selection-start="10000" selection-end="10000" vertical-scroll-proportion="0.11480687">
           <folding />
         </state>
       </provider>
