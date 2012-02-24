@@ -1,15 +1,20 @@
 javascript: (function() {
-/* todos:
- 1) char specific eg some needs to skip black_pool but not others
- 2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
- 3) auto send gold when over certain limit
- */
+  /* todos:
+   0) autohunt needs to pick up rings
+   1) char specific eg some needs to skip black_pool but not others
+   2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
+   3) auto send gold when over certain limit
+   features:
+   combine chats
+   switch equipped items
+   */
 
   window.flag_history = [];
   var auto_chop = false;
   var auto_pick = false;
   var auto_build = false;
   var auto_hunt = false;
+  var auto_jump = false;
   var chopTimer = 9;
   var pickTimer = 9;
   var buildTimer = 0;
@@ -67,6 +72,17 @@ javascript: (function() {
       }).length > 0) {
       has_info = true;
     }
+    return has_info;
+  }
+
+  function element_has_any_info(e,infos) {
+    var has_info = false;
+    $.each(infos,function(i, info){
+      if (element_has_info(e,info)) {
+        has_info = true;
+        return;
+      }
+    });
     return has_info;
   }
 
@@ -171,6 +187,30 @@ javascript: (function() {
     return repaired;
   }
 
+  function pickup_closest_item_except(infos) {
+    var picked_up = false;
+    require(["map_utils", "state"], function(m, state) {
+      target_items = [];
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(),"PICKUP") || element_has_action(v.getElement(),"PICKUP_ALL")) {
+          if (!element_has_any_info(v.getElement(), infos)) {
+            target_items.push(v.getElement());
+          }
+        }
+      });
+      if (target_items.length > 0) {
+        target_items = sort_elements_by_distance(m, state.getYouLocationElement(), target_items);
+        var target_action = get_element_action(target_items[0], 'PICKUP_ALL');
+        if (!target_action) {
+          target_action = get_element_action(target_items[0], 'PICKUP');
+        }
+        $(document).trigger("action.element.doAction", [target_items[0], target_action]);
+        picked_up = true;
+      }
+    });
+    return picked_up;
+  }
+
   function pickup_closest_item(info) {
     var picked_up = false;
     require(["map_utils", "state"], function(m, state) {
@@ -198,7 +238,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
+        if (element_has_action(v.getElement(), 'ATTACK') && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < meters) {
             exist = true;
@@ -214,7 +254,7 @@ javascript: (function() {
     var count = 0;
     require(["map_utils"], function(m) {
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
           count += 1;
         }
       });
@@ -222,12 +262,35 @@ javascript: (function() {
     return count;
   }
 
+  function charge_closest_monster() {
+    var charged = false;
+    require(["map_utils", "state"], function(m, state) {
+      target_mobs = [];
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(), "SHIELD_CHARGE") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
+            var charge_action = get_element_action(v.getElement(), 'SHIELD_CHARGE');
+            if (charge_action.displayString.indexOf('Cooldown') == -1) {
+              target_mobs.push(v.getElement());
+            }
+        }
+      });
+      if (target_mobs.length > 0) {
+        target_mobs = sort_elements_by_distance(m, state.getYouLocationElement(), target_mobs);
+        var target_action = get_element_action(target_mobs[0], 'SHIELD_CHARGE');
+        $(document).trigger("action.element.doAction", [target_mobs[0], target_action]);
+        charged = true;
+      }
+    });
+    return charged;
+
+  }
+
   function attack_closest_monster() {
     var attacked = false;
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && !v._isCharacter && !element_has_info(v.getElement(), "buoy")) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
           target_mobs.push(v.getElement());
         }
       });
@@ -335,6 +398,31 @@ javascript: (function() {
 
   }
 
+  function do_jump_in_place() {
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      window.current_flag = [];
+      var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
+      $.each(m.markerElementMap, function(k, v) {
+        if ($.grep(v.getElement().actions,
+          function(n, i) {
+            return (n.command == 'WARP_TO_BUILDING');
+          }).length > 0) {
+          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate") {
+            var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
+            if (dist < 10) {
+              window.current_flag.push(v.getElement());
+            }
+          }
+        }
+      });
+      if (window.current_flag.length > 0) {
+        var target_element = window.current_flag[0];
+        var target_action = get_element_action(target_element, 'WARP_TO_BUILDING');
+        $(document).trigger("action.element.doAction", [target_element, target_action]);
+      }
+    });
+  }
+
   function do_double_jump() {
     return do_jump_to_next_flag(1);
   }
@@ -388,17 +476,21 @@ javascript: (function() {
   }
 
   function do_auto_hunt() {
+    var attacked = false;
     if (is_busy() || is_moving()) {
       return;
     }
     if (pickup_closest_item('backpack')) {
       return;
     }
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breastplate"])) {
+      return;
+    }
     if (current_health_percent() < 80) {
       return;
     }
     if (uTimer % 500 == 0) {
-      do_move(50,Math.floor(Math.random() * 360));
+      do_move(50, Math.floor(Math.random() * 360));
     }
     if (check_for_monsters(['siren','yanglong'])) {
       huntTimer = -9;
@@ -410,12 +502,14 @@ javascript: (function() {
         huntTimer = -10;
         return;
       }
-      var attacked = false;
       if (is_taunt_available() && monster_count() > 10) {
         do_self_action('TAUNT');
         attacked = true;
       } else {
-        attacked = attack_closest_monster();
+        attacked = charge_closest_monster();
+        if (!attacked) {
+          attacked = attack_closest_monster();
+        }
       }
       huntTimer = -16;
       if (!attacked) {
@@ -425,7 +519,10 @@ javascript: (function() {
       return
     }
     if (!monsters_in_vicinity(125)) {
-      var attacked = attack_closest_monster();
+      attacked = charge_closest_monster();
+      if (!attacked) {
+        attacked = attack_closest_monster();
+      }
       huntTimer = -16;
       return
     }
@@ -679,6 +776,9 @@ javascript: (function() {
         do_auto_hunt();
       }
     }
+    if (auto_jump) {
+      do_jump_in_place();
+    }
   }
 
   var noHealTimer = 0;
@@ -828,6 +928,9 @@ javascript: (function() {
     if (keyPress == 36) {
       auto_hunt = !auto_hunt;
       huntTimer = 999;
+    }
+    if (keyPress == 33) {
+      auto_jump = !auto_jump;
     }
   });
   auto_do_tick();
