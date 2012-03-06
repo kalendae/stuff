@@ -1,6 +1,6 @@
 javascript: (function() {
   /* todos:
-   0) autohunt needs to pick up rings
+   -1) need to stop and email if another char shows up
    1) char specific eg some needs to skip black_pool but not others
    2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
    3) auto send gold when over certain limit
@@ -9,16 +9,22 @@ javascript: (function() {
    switch equipped items
    */
 
+  window.do_not_hunt_list = ["skeleton","golem","troll"];  /* TODO: get actual info names for golems and trolls */
   window.flag_history = [];
   var auto_chop = false;
   var auto_pick = false;
   var auto_build = false;
   var auto_hunt = false;
   var auto_jump = false;
+  var auto_garden = false;
+  var auto_explore = false;
   var chopTimer = 9;
   var pickTimer = 9;
   var buildTimer = 0;
   var huntTimer = 0;
+  var gardenTimer = 0;
+  var exploreTimer = 0;
+  var total_distance_togo = 0;
   var uTimer = 0;
 
   function do_self_action(action_name) {
@@ -42,6 +48,16 @@ javascript: (function() {
     });
   }
 
+  function do_message_action(receiver, msg) {
+    require(["net"], function(net) {
+      net.post({
+        fullName: "PostNewTopic1",
+        body: msg,
+        receiverName: receiver
+      });
+    });
+  }
+
   function do_build(creation_name) {
     require(["net"], function(net) {
       net.post({
@@ -51,6 +67,34 @@ javascript: (function() {
         quantity: 1
       });
     });
+  }
+
+  function player_count() {
+    var count = 0;
+    require(["map_utils"], function(m) {
+      $.each(m.markerElementMap, function(k, v) {
+        if (v._isCharacter) {
+          count += 1;
+        }
+      });
+    });
+    return count;
+  }
+
+  function stop_if_not_alone() {
+    var stopped = false;
+    if (player_count() > 1) {
+      auto_chop = false;
+      auto_pick = false;
+      auto_build = false;
+      auto_hunt = false;
+      auto_jump = false;
+      auto_garden = false;
+      auto_explore = false;
+      stopped = true;
+      do_message_action("Consumed", ["Hey you there","yo","yoyoyo","how goe it","u there?","whatsup","sup","word","bacon"][Math.floor(Math.random() * 9)]);
+    }
+    return stopped;
   }
 
   function element_has_action(e, action) {
@@ -75,10 +119,10 @@ javascript: (function() {
     return has_info;
   }
 
-  function element_has_any_info(e,infos) {
+  function element_has_any_info(e, infos) {
     var has_info = false;
-    $.each(infos,function(i, info){
-      if (element_has_info(e,info)) {
+    $.each(infos, function(i, info) {
+      if (element_has_info(e, info)) {
         has_info = true;
         return;
       }
@@ -187,12 +231,23 @@ javascript: (function() {
     return repaired;
   }
 
+  function do_item_action(action) {
+    require(["map_utils", "state","net"], function(m, state, net) {
+      $.each(state.data.items, function(i, n) {
+        if (element_has_action(n, action)) {
+          do_action_to(action, n);
+          return;
+        }
+      });
+    });
+  }
+
   function pickup_closest_item_except(infos) {
     var picked_up = false;
     require(["map_utils", "state"], function(m, state) {
       target_items = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(),"PICKUP") || element_has_action(v.getElement(),"PICKUP_ALL")) {
+        if (element_has_action(v.getElement(), "PICKUP") || element_has_action(v.getElement(), "PICKUP_ALL")) {
           if (!element_has_any_info(v.getElement(), infos)) {
             target_items.push(v.getElement());
           }
@@ -238,7 +293,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
+        if (element_has_action(v.getElement(), 'ATTACK') && (v.getElement().elementId.indexOf("Mon") != -1)  && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < meters) {
             exist = true;
@@ -254,7 +309,7 @@ javascript: (function() {
     var count = 0;
     require(["map_utils"], function(m) {
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
           count += 1;
         }
       });
@@ -267,11 +322,11 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "SHIELD_CHARGE") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
-            var charge_action = get_element_action(v.getElement(), 'SHIELD_CHARGE');
-            if (charge_action.displayString.indexOf('Cooldown') == -1) {
-              target_mobs.push(v.getElement());
-            }
+        if (element_has_action(v.getElement(), "SHIELD_CHARGE") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
+          var charge_action = get_element_action(v.getElement(), 'SHIELD_CHARGE');
+          if (charge_action.displayString.indexOf('Cooldown') == -1) {
+            target_mobs.push(v.getElement());
+          }
         }
       });
       if (target_mobs.length > 0) {
@@ -290,7 +345,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) /* && (element_has_info(v.getElement(), "gyront") || element_has_info(v.getElement(), "mosha")) */) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list) ) {
           target_mobs.push(v.getElement());
         }
       });
@@ -399,6 +454,10 @@ javascript: (function() {
   }
 
   function do_jump_in_place() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
     require(["map_utils", "state", "net"], function(m, state, net) {
       window.current_flag = [];
       var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
@@ -407,11 +466,9 @@ javascript: (function() {
           function(n, i) {
             return (n.command == 'WARP_TO_BUILDING');
           }).length > 0) {
-          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate") {
-            var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
-            if (dist < 10) {
-              window.current_flag.push(v.getElement());
-            }
+          var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
+          if (dist < 10) {
+            window.current_flag.push(v.getElement());
           }
         }
       });
@@ -440,7 +497,7 @@ javascript: (function() {
           function(n, i) {
             return (n.command == 'WARP_TO_BUILDING');
           }).length > 0) {
-          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate") {
+          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate" || v.getElement().name == "SentientConstruct") {
             var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
             if (dist < 10) {
               window.current_flag.push(v.getElement());
@@ -475,7 +532,81 @@ javascript: (function() {
     return jumped;
   }
 
+  var garden_pattern = [
+    [0,180],
+    [0,360],
+    [0,525],
+    [30,525],
+    [30,360],
+    [30,180],
+    [60,180],
+    [60,360],
+    [60,525],
+    [90,525],
+    [90,360],
+    [90,180],
+    [120,180],
+    [120,360],
+    [120,525],
+    [150,525],
+    [150,360],
+    [150,180],
+    [180,180],
+    [180,360],
+    [180,525],
+    [210,525],
+    [210,360],
+    [210,180],
+    [240,180],
+    [240,360],
+    [240,525],
+    [270,525],
+    [270,360],
+    [270,180],
+    [300,180],
+    [300,360],
+    [300,525],
+    [330,525],
+    [330,360],
+    [330,180]
+  ];
+
+  function do_auto_garden() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    if (pickup_closest_item('backpack') || pickup_closest_item('thistle') || pickup_closest_item('leather') || pickup_closest_item('larva_meat')) {
+      return;
+    }
+    if (window.garden_position >= garden_pattern.length) {
+      window.garden_position = 0;
+      do_jump_to_next_flag(0);
+      gardenTimer = -5;
+      return;
+    }
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      var dest_coords = garden_pattern[window.garden_position];
+      var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
+      var dest = new google.maps.geometry.spherical.computeOffset(center, dest_coords[1], dest_coords[0]);
+      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      var dis = google.maps.geometry.spherical.computeDistanceBetween(my_pos, dest);
+      if (dis > 10) {
+        do_move_to(dest_coords[1], dest_coords[0]);
+      } else {
+        do_self_action('PLANT_TREES');
+        window.garden_position += 1;
+      }
+    });
+  }
+
   function do_auto_hunt() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
     var attacked = false;
     if (is_busy() || is_moving()) {
       return;
@@ -483,7 +614,7 @@ javascript: (function() {
     if (pickup_closest_item('backpack')) {
       return;
     }
-    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breastplate"])) {
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breast_plate"])) {
       return;
     }
     if (current_health_percent() < 80) {
@@ -528,8 +659,56 @@ javascript: (function() {
     }
   }
 
+  function do_auto_explore() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    if (pickup_closest_item('backpack')) {
+      return;
+    }
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breast_plate"])) {
+      return;
+    }
+    if (!is_aggressive()) {
+      if (repair_gear_if_needed(50)) {
+        exploreTimer = -3;
+        return;
+      }
+    }
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      if (m._waypoint && m._waypoint.location) {
+        var waypoint = m._waypoint.location;
+        var wp_loc = new google.maps.LatLng(waypoint.lat, waypoint.lng);
+        var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
+        var heading = google.maps.geometry.spherical.computeHeading(center, wp_loc);
+        total_distance_togo = google.maps.geometry.spherical.computeDistanceBetween(center, wp_loc);
+        if (total_distance_togo > 600) {
+          var dest = new google.maps.geometry.spherical.computeOffset(center, 560, heading);
+          var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+          var dis = google.maps.geometry.spherical.computeDistanceBetween(my_pos, dest);
+          if (dis > 15) {
+            do_move_to(560, heading);
+          } else {
+            var attacked = do_attack_immediate_monsters();
+            if (!attacked && !is_aggressive()) {
+              do_self_action('RECENTER_CIRCLE');
+              exploreTimer = -5;
+            }
+          }
+        }
+      }
+    });
+  }
+
 
   function do_auto_build() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
     require(["map_utils", "state", "net"], function(m, state, net) {
       var jumped = do_jump_to_next_flag();
       if (!jumped) {
@@ -552,6 +731,10 @@ javascript: (function() {
   }
 
   function do_auto_pick() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
     if (is_busy() || is_moving()) {
       return;
     }
@@ -563,6 +746,10 @@ javascript: (function() {
   }
 
   function do_auto_chop() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
     if (is_busy() || is_moving()) {
       return;
     }
@@ -739,6 +926,16 @@ javascript: (function() {
     } else {
       str += "<span style=\"color:#999;\">hunt:" + huntTimer + "</span>"
     }
+    if (auto_garden) {
+      str += "<span style=\"color:green;font-weight:bold;\">garden:" + gardenTimer + "</span>"
+    } else {
+      str += "<span style=\"color:#999;\">garden:" + gardenTimer + "</span>"
+    }
+    if (auto_explore) {
+      str += "<span style=\"color:green;font-weight:bold;\">explore:" + exploreTimer + ":" + total_distance_togo + "</span>"
+    } else {
+      str += "<span style=\"color:#999;\">explore:" + exploreTimer + "</span>"
+    }
     $('#sstatus').html(str);
   }
 
@@ -778,6 +975,20 @@ javascript: (function() {
     }
     if (auto_jump) {
       do_jump_in_place();
+    }
+    if (auto_garden) {
+      gardenTimer += 1;
+      if (gardenTimer > 1) {
+        gardenTimer = 0;
+        do_auto_garden();
+      }
+    }
+    if (auto_explore) {
+      exploreTimer += 1;
+      if (exploreTimer > 0) {
+        exploreTimer = 0;
+        do_auto_explore();
+      }
     }
   }
 
@@ -931,6 +1142,20 @@ javascript: (function() {
     }
     if (keyPress == 33) {
       auto_jump = !auto_jump;
+    }
+    if (keyPress == 1220) {
+      auto_garden = true;
+      window.garden_position = 0;
+    }
+    if (keyPress == 1080) {
+      do_item_action("PLANT");
+    }
+    if (keyPress == 1069) {
+      auto_explore = !auto_explore;
+      exploreTimer = 9;
+    }
+    if (keyPress == 1082) {
+      do_self_action('RECENTER_CIRCLE');
     }
   });
   auto_do_tick();
