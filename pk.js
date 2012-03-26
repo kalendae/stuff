@@ -761,22 +761,22 @@ javascript: (function() {
     }
     if (!is_aggressive()) {
       if (repair_gear_if_needed(50)) {
-        huntTimer = -3;
+        leatherTimer = -3;
         return;
       }
       if (is_taunt_available() && monster_count() > 10) {
         do_self_action('TAUNT');
         attacked = true;
-        huntTimer = -16;
+        leatherTimer = -16;
       } else {
         attacked = charge_closest_monster();
         if (!attacked) {
           attacked = attack_closest_monster();
         }
-        huntTimer = -5;
+        leatherTimer = -5;
       }
       if (!attacked) {
-        huntTimer = -9;
+        leatherTimer = -9;
         var mined = mine_closest();
         if (!mined) {
           do_estate_pet_action("DOG_TRACK_LEATHER");
@@ -789,7 +789,7 @@ javascript: (function() {
       if (!attacked) {
         attacked = attack_closest_monster();
       }
-      huntTimer = -5;
+      leatherTimer = -5;
       return
     }
   }
