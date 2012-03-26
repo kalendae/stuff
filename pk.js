@@ -9,7 +9,14 @@ javascript: (function() {
    switch equipped items
    */
 
-  window.do_not_hunt_list = ["skeleton","golem","troll"];  /* TODO: get actual info names for golems and trolls */
+  var equipment_sets = [
+    {'1' : ['Dishonor','Disgrace','Diamond Honed Magnathere Horned Shield','Diamond Poison Ornament Sling','Grand Ring of the Silent Sword','Grand Ring of the Oozing Nautaloid']},
+    {'2' : []},
+    {'3' : []}
+  ];
+
+  window.do_not_hunt_list = ["skeleton","golem","troll","monk","larva"];
+  /* TODO: get actual info names for golems and trolls */
   window.flag_history = [];
   var auto_chop = false;
   var auto_pick = false;
@@ -18,14 +25,22 @@ javascript: (function() {
   var auto_jump = false;
   var auto_garden = false;
   var auto_explore = false;
+  var auto_leather = false;
   var chopTimer = 9;
   var pickTimer = 9;
   var buildTimer = 0;
   var huntTimer = 0;
   var gardenTimer = 0;
   var exploreTimer = 0;
+  var leatherTimer = 0;
   var total_distance_togo = 0;
   var uTimer = 0;
+  var equipment_indices = {
+    "MAKE_RANGED": 999,
+    "MAKE_ATTACK": 999,
+    "MAKE_BODY": 999,
+    "MAKE_OFF_HAND": 999
+  };
 
   function do_self_action(action_name) {
     require(["state", "net"], function(state, net) {
@@ -69,6 +84,26 @@ javascript: (function() {
     });
   }
 
+  function do_estate_pet_action(action_name) {
+    require(["state", "net"], function(state, net) {
+      var dog_estates = [];
+      $.each(state.data.estates.elements, function(i, n) {
+        if (n.elementId.indexOf("Pet") != -1) {
+          dog_estates.push(n);
+          return;
+        }
+      });
+      if (dog_estates.length > 0) {
+        var dog_id = dog_estates[0].elementId;
+        net.post({
+          fullName: "DoAction1",
+          actionId: dog_id,
+          command: action_name
+        });
+      }
+    });
+  }
+
   function player_count() {
     var count = 0;
     require(["map_utils"], function(m) {
@@ -88,13 +123,20 @@ javascript: (function() {
       auto_pick = false;
       auto_build = false;
       auto_hunt = false;
+      auto_leather = false;
       auto_jump = false;
       auto_garden = false;
       auto_explore = false;
       stopped = true;
-      do_message_action("Consumed", ["Hey you there","yo","yoyoyo","how goe it","u there?","whatsup","sup","word","bacon"][Math.floor(Math.random() * 9)]);
+      /*do_message_action("kalendae", ["Hey you there","yo","yoyoyo","how goe it","u there?","whatsup","sup","word","bacon"][Math.floor(Math.random() * 9)]);*/
     }
     return stopped;
+  }
+
+  function item_with_display_string_including(str) {
+    require(["state"], function(state) {
+      
+    });
   }
 
   function element_has_action(e, action) {
@@ -293,7 +335,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && (v.getElement().elementId.indexOf("Mon") != -1)  && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
+        if (element_has_action(v.getElement(), 'ATTACK') && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(), window.do_not_hunt_list)) {
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < meters) {
             exist = true;
@@ -309,7 +351,7 @@ javascript: (function() {
     var count = 0;
     require(["map_utils"], function(m) {
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(), window.do_not_hunt_list)) {
           count += 1;
         }
       });
@@ -322,7 +364,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "SHIELD_CHARGE") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list)) {
+        if (element_has_action(v.getElement(), "SHIELD_CHARGE") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(), window.do_not_hunt_list)) {
           var charge_action = get_element_action(v.getElement(), 'SHIELD_CHARGE');
           if (charge_action.displayString.indexOf('Cooldown') == -1) {
             target_mobs.push(v.getElement());
@@ -345,7 +387,7 @@ javascript: (function() {
     require(["map_utils", "state"], function(m, state) {
       target_mobs = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(),window.do_not_hunt_list) ) {
+        if (element_has_action(v.getElement(), "ATTACK") && (v.getElement().elementId.indexOf("Mon") != -1) && !element_has_any_info(v.getElement(), window.do_not_hunt_list)) {
           target_mobs.push(v.getElement());
         }
       });
@@ -357,6 +399,25 @@ javascript: (function() {
       }
     });
     return attacked;
+  }
+
+  function mine_closest() {
+    var mined = false;
+    require(["map_utils", "state"], function(m, state) {
+      target_caves = [];
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(), "MINE")) {
+          target_caves.push(v.getElement());
+        }
+      });
+      if (target_caves.length > 0) {
+        target_caves = sort_elements_by_distance(m, state.getYouLocationElement(), target_caves);
+        var target_action = get_element_action(target_caves[0], "MINE");
+        $(document).trigger("action.element.doAction", [target_caves[0], target_action]);
+        mined = true;
+      }
+    });
+    return mined;
   }
 
   function check_for_monsters(name_array) {
@@ -380,13 +441,18 @@ javascript: (function() {
     return exist;
   }
 
-  function do_attack_immediate_monsters() {
+  function do_attack() {
     var attacked = false;
     require(["map_utils", "state"], function(m, state) {
-      window.immediate_monsters = [];
-      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      var enemies = [];
+      var monsters = [];
       $.each(m.markerElementMap, function(k, v) {
         if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter) {
+          if (v.getElement().elmentId.indexOf("Mon") != -1) {
+
+          } else if (v.getElement().elmentId.indexOf("Chr") != -1) {
+
+          }
           var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
           if (dist < 50) {
             window.immediate_monsters.push(v.getElement());
@@ -536,36 +602,42 @@ javascript: (function() {
     [0,180],
     [0,360],
     [0,525],
+    [15,525],
     [30,525],
     [30,360],
     [30,180],
     [60,180],
     [60,360],
     [60,525],
+    [75,525],
     [90,525],
     [90,360],
     [90,180],
     [120,180],
     [120,360],
     [120,525],
+    [135,525],
     [150,525],
     [150,360],
     [150,180],
     [180,180],
     [180,360],
     [180,525],
+    [195,525],
     [210,525],
     [210,360],
     [210,180],
     [240,180],
     [240,360],
     [240,525],
+    [255,525],
     [270,525],
     [270,360],
     [270,180],
     [300,180],
     [300,360],
     [300,525],
+    [315,525],
     [330,525],
     [330,360],
     [330,180]
@@ -579,6 +651,9 @@ javascript: (function() {
       return;
     }
     if (pickup_closest_item('backpack') || pickup_closest_item('thistle') || pickup_closest_item('leather') || pickup_closest_item('larva_meat')) {
+      return;
+    }
+    if (act_on_closest_tree()) {
       return;
     }
     if (window.garden_position >= garden_pattern.length) {
@@ -624,45 +699,102 @@ javascript: (function() {
       do_move(50, Math.floor(Math.random() * 360));
     }
     if (check_for_monsters(['siren','yanglong'])) {
-      huntTimer = -9;
+      huntTimer = -5;
       do_jump_to_next_flag();
       return;
     }
     if (!is_aggressive()) {
       if (repair_gear_if_needed(50)) {
-        huntTimer = -10;
+        huntTimer = -3;
         return;
       }
       if (is_taunt_available() && monster_count() > 10) {
         do_self_action('TAUNT');
         attacked = true;
+        huntTimer = -16;
       } else {
         attacked = charge_closest_monster();
         if (!attacked) {
           attacked = attack_closest_monster();
         }
+        huntTimer = -5;
       }
-      huntTimer = -16;
       if (!attacked) {
         huntTimer = -9;
-        do_double_jump();
+        var mined = mine_closest();
+        if (!mined) {
+          do_jump_to_next_flag(1);
+        }
       }
       return
     }
-    if (!monsters_in_vicinity(125)) {
+    if (!monsters_in_vicinity(120)) {
       attacked = charge_closest_monster();
       if (!attacked) {
         attacked = attack_closest_monster();
       }
-      huntTimer = -16;
+      huntTimer = -5;
+      return
+    }
+  }
+
+  function do_auto_leather() {
+    if (stop_if_not_alone()) {
+      return;
+    }
+
+    var attacked = false;
+    if (is_busy() || is_moving()) {
+      return;
+    }
+    if (pickup_closest_item('backpack')) {
+      return;
+    }
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breast_plate"])) {
+      return;
+    }
+    if (current_health_percent() < 80) {
+      return;
+    }
+    if (uTimer % 500 == 0) {
+      do_move(50, Math.floor(Math.random() * 360));
+    }
+    if (!is_aggressive()) {
+      if (repair_gear_if_needed(50)) {
+        huntTimer = -3;
+        return;
+      }
+      if (is_taunt_available() && monster_count() > 10) {
+        do_self_action('TAUNT');
+        attacked = true;
+        huntTimer = -16;
+      } else {
+        attacked = charge_closest_monster();
+        if (!attacked) {
+          attacked = attack_closest_monster();
+        }
+        huntTimer = -5;
+      }
+      if (!attacked) {
+        huntTimer = -9;
+        var mined = mine_closest();
+        if (!mined) {
+          do_estate_pet_action("DOG_TRACK_LEATHER");
+        }
+      }
+      return
+    }
+    if (!monsters_in_vicinity(100)) {
+      attacked = charge_closest_monster();
+      if (!attacked) {
+        attacked = attack_closest_monster();
+      }
+      huntTimer = -5;
       return
     }
   }
 
   function do_auto_explore() {
-    if (stop_if_not_alone()) {
-      return;
-    }
     if (is_busy() || is_moving()) {
       return;
     }
@@ -738,6 +870,12 @@ javascript: (function() {
     if (is_busy() || is_moving()) {
       return;
     }
+    if (pickup_closest_item('backpack')) {
+      return;
+    }
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breast_plate"])) {
+      return;
+    }
     var picked = pick_or_tend_closest_tree();
     if (!picked) {
       pickTimer = -8;
@@ -751,6 +889,12 @@ javascript: (function() {
     }
 
     if (is_busy() || is_moving()) {
+      return;
+    }
+    if (pickup_closest_item('backpack')) {
+      return;
+    }
+    if (pickup_closest_item_except(["axe","sword","spear","shield","gyront_shell","crude_oil","dagger","breast_plate"])) {
       return;
     }
     var chopped = act_on_closest_tree();
@@ -797,14 +941,13 @@ javascript: (function() {
             target_action = $.grep(closest_tree.actions, function(n, i) {
               return (n.command == 'PICK');
             })[0];
+            $(document).trigger("action.element.doAction", [closest_tree, target_action]);
           }
           else if ($.grep(closest_tree.actions,
             function(n, i) {
               return (n.command == 'WATER');
             }).length > 0) {
-            target_action = $.grep(closest_tree.actions, function(n, i) {
-              return (n.command == 'WATER');
-            })[0];
+            do_move_to_element(closest_tree);
           }
           else if ($.grep(closest_tree.actions,
             function(n, i) {
@@ -813,12 +956,12 @@ javascript: (function() {
             target_action = $.grep(closest_tree.actions, function(n, i) {
               return (n.command == 'COLLECT_SNOW');
             })[0];
+            $(document).trigger("action.element.doAction", [closest_tree, target_action]);
           }
           else {
             picked = false;
             return false;
           }
-          $(document).trigger("action.element.doAction", [closest_tree, target_action]);
           picked = true;
         }
       });
@@ -832,7 +975,7 @@ javascript: (function() {
       require(["map_utils", "state", "net"], function(m, state, net) {
         var mourning_trees = [];
         $.each(m.markerElementMap, function(k, v) {
-          if (v.getElement().displayString == "Mourning Tree" || v.getElement().displayString == "Sick Mourning Tree Sapling") {
+          if (v.getElement().displayString == "Mourning Tree" || v.getElement().displayString == "Sick Mourning Tree Sapling" || v.getElement().displayString == "Dusk Tree") {
             mourning_trees.push(v.getElement());
           }
         });
@@ -926,6 +1069,11 @@ javascript: (function() {
     } else {
       str += "<span style=\"color:#999;\">hunt:" + huntTimer + "</span>"
     }
+    if (auto_leather) {
+      str += "<span style=\"color:green;font-weight:bold;\">leather:" + leatherTimer + "</span>"
+    } else {
+      str += "<span style=\"color:#999;\">leather:" + leatherTimer + "</span>"
+    }
     if (auto_garden) {
       str += "<span style=\"color:green;font-weight:bold;\">garden:" + gardenTimer + "</span>"
     } else {
@@ -973,6 +1121,13 @@ javascript: (function() {
         do_auto_hunt();
       }
     }
+    if (auto_leather) {
+      leatherTimer += 1;
+      if (leatherTimer > 1) {
+        leatherTimer = 0;
+        do_auto_leather();
+      }
+    }
     if (auto_jump) {
       do_jump_in_place();
     }
@@ -1007,6 +1162,32 @@ javascript: (function() {
     }
   }
 
+  function do_rotate_equip(action) {
+    var valid_items = [];
+    var current_item = [];
+    require(["state", "net"], function(state, net) {
+      $.each(state.data.items, function(i, n) {
+        if (element_has_action(n, action)) {
+          valid_items.push(n);
+        }
+      });
+      if (valid_items.length > 0) {
+        if ((equipment_indices[action] + 1) >= valid_items.length) {
+          current_item.push(valid_items[0]);
+          equipment_indices[action] = 0;
+        } else {
+          current_item.push(valid_items[equipment_indices[action] + 1]);
+          equipment_indices[action] += 1;
+        }
+        net.post({
+          fullName: "DoAction1",
+          actionId: current_item[0].elementId,
+          command: action
+        });
+      }
+    });
+  }
+
   /* move based on your location */
   function do_move(meters, degrees) {
     require(["map_utils", "state", "net"], function(m, state, net) {
@@ -1025,6 +1206,19 @@ javascript: (function() {
     require(["map_utils", "state", "net"], function(m, state, net) {
       var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
       var dest = new google.maps.geometry.spherical.computeOffset(center, meters, degrees);
+      var you = state.getYouLocationElement();
+      var you_marker = m.getMarkerForElement(you);
+      you.movementSpeed > 0 && (m.startMoveMarker(you_marker, dest, function() {
+      }),require(["game"], function(game) {
+        game.movePlayerAnalog(you, dest, m._currentTargetName)
+      }));
+    });
+  }
+
+  /* move based on center location */
+  function do_move_to_element(element) {
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      var dest = new google.maps.LatLng(element.location.lat, element.location.lng);
       var you = state.getYouLocationElement();
       var you_marker = m.getMarkerForElement(you);
       you.movementSpeed > 0 && (m.startMoveMarker(you_marker, dest, function() {
@@ -1076,6 +1270,14 @@ javascript: (function() {
   getMousePosition();
 
   $(document).bind('keydown', function(e) {
+
+    if (e.which == 9) {
+      $('input').blur();
+      return;
+    }
+    if (e.target.tagName.toUpperCase() == 'INPUT') return;
+    if (e.target.tagName.toUpperCase() == 'TEXTAREA') return;
+
     var keyPress = e.which;
     if (e.shiftKey == true) {
       keyPress += 1000;
@@ -1126,8 +1328,8 @@ javascript: (function() {
     if (keyPress == 101) {
       do_move_to(meters = 0, degrees = 0);
     }
-    if (keyPress == 1065) {
-      do_attack_immediate_monsters();
+    if (keyPress == 65) {
+      do_attack();
     }
     if (keyPress == 96) {
       do_jump_to_next_flag();
@@ -1140,14 +1342,18 @@ javascript: (function() {
       auto_hunt = !auto_hunt;
       huntTimer = 999;
     }
+    if (keyPress == 1036) {
+      auto_leather = !auto_leather;
+      leatherTimer = 999;
+    }
     if (keyPress == 33) {
       auto_jump = !auto_jump;
     }
     if (keyPress == 1220) {
-      auto_garden = true;
+      auto_garden = !auto_garden;
       window.garden_position = 0;
     }
-    if (keyPress == 1080) {
+    if (keyPress == 80) {
       do_item_action("PLANT");
     }
     if (keyPress == 1069) {
@@ -1157,6 +1363,42 @@ javascript: (function() {
     if (keyPress == 1082) {
       do_self_action('RECENTER_CIRCLE');
     }
+    if (keyPress == 1084) {
+      do_estate_pet_action("DOG_TRACK_LEATHER");
+    }
+    
+    /* 0 to 9 */
+    if (keyPress >= 48 && keyPress <= 57) {
+
+    }
+    /* A S D F */
+    if (keyPress == 65) {
+
+    }
+    if (keyPress == 83) {
+
+    }
+    if (keyPress == 68) {
+
+    }
+    if (keyPress == 70) {
+
+    }
+    /* Q W E R */
+    if (keyPress == 81) {
+      do_rotate_equip("MAKE_RANGED");
+    }
+    if (keyPress == 87) {
+      do_rotate_equip("MAKE_ATTACK");
+    }
+    if (keyPress == 69) {
+      do_rotate_equip("MAKE_BODY");
+    }
+    if (keyPress == 82) {
+      do_rotate_equip("MAKE_OFF_HAND");
+    }
+
+
   });
   auto_do_tick();
 }

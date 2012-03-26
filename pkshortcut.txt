@@ -1,0 +1,240 @@
+javascript: (function() {
+    function do_self_action(action_name) {
+        require(["state", "net"], function(state, net) {
+            var you_element = state.getYouLocationElement();
+            var c_id = you_element.elementId;
+            if ($.grep(you_element.actions, function(n, i) {
+                return (n.command == action_name);
+            }).length > 0) {
+                net.post({
+                    fullName: "DoAction1",
+                    actionId: c_id,
+                    command: action_name
+                });
+            };
+        });
+    };
+
+    function do_build(creation_name) {
+        require(["net"], function(net) {
+            net.post({
+                fullName: "Create1",
+                makeId: "build",
+                creationTypeName: creation_name,
+                quantity: 1
+            });
+        });
+    };
+
+    function do_estate_pet_action(action_name) {
+        require(["state", "net"], function(state, net) {
+            var dog_estates = [];
+            $.each(state.data.estates.elements, function(i, n) {
+                if (n.displayString == "Explore Open Land") {
+                    dog_estates.push(n);
+                    return;
+                }
+            });
+            if (dog_estates.length > 0) {
+                var dog_id = dog_estates[0].elementId;
+                net.post({
+                    fullName: "DoAction1",
+                    actionId: dog_id,
+                    command: action_name
+                });
+            }
+        });
+    };
+
+    function element_has_action(e, action) {
+        var has_action = false;
+        if ($.grep(e.actions, function(n, i) {
+            return (n.command == action);
+        }).length > 0) {
+            has_action = true;
+        }
+        return has_action;
+    };
+
+    function do_rotate_equip(action) {
+        window.valid_items = [];
+        window.current_item = [];
+        require(["state", "net"], function(state, net) {
+            $.each(state.data.items, function(i, n) {
+                if (element_has_action(n, action)) {
+                    window.valid_items.push(n);
+                }
+            });
+            if (window.valid_items.length > 0) {
+                if ((window.equipment_indices[action] + 1) >= window.valid_items.length) {
+                    window.current_item.push(window.valid_items[0]);
+                    window.equipment_indices[action] = 0;
+                } else {
+                    window.current_item.push(window.valid_items[window.equipment_indices[action] + 1]);
+                    window.equipment_indices[action] += 1;
+                }
+                net.post({
+                    fullName: "DoAction1",
+                    actionId: window.current_item[0].elementId,
+                    command: action
+                });
+            }
+        });
+    };
+
+    function do_dragon_pet_action(action_name) {
+        require(["map_utils", "state", "net"], function(m, state, net) {
+            var dragons = [];
+            $.each(m.markerElementMap, function(k, v) {
+                if ($.grep(v.getElement().actions, function(n, i) {
+                    return (n.command == action_name);
+                }).length > 0) {
+                    dragons.push(v.getElement());
+                };
+            });
+            if (dragons.length > 0) {
+                net.post({
+                    fullName: "DoAction1",
+                    actionId: dragons[0].elementId,
+                    command: action_name
+                });
+            };
+        });
+
+    };
+
+    function do_mouse_hover_action(action_name) {
+        require(["map_utils", "utils", "net"], function(m, u, net) {
+            var x = window.mouseXPos,
+                y = window.mouseYPos;
+            var box = [x - 15, y - 15, x + 15, y + 15];
+            var markers = u.UI.findIntersectorsFromBoundsOffset(box, ".map-display-layer-overlay");
+            var viable_targets = [];
+            if (markers.length > 0) {
+                $.each(markers, function(i, d) {
+                    var element = m.markerElementMap[$(d).data("elementId")];
+                    if (element) {
+                        if ($.grep(element.getElement().actions, function(n, i) {
+                            return (n.command == action_name);
+                        }).length > 0) {
+                            viable_targets.push(element.getElement());
+                        };
+                    };
+                });
+            };
+            if (viable_targets.length > 0) {
+                net.post({
+                    fullName: "DoAction1",
+                    actionId: viable_targets[0].elementId,
+                    command: action_name
+                });
+            };
+        });
+    };
+
+    function getMousePosition() {
+        $(document).one("mousemove", function(event) {
+            window.mouseXPos = event.clientX;
+            window.mouseYPos = event.clientY;
+            setTimeout(getMousePosition, 100);
+        });
+    }
+    getMousePosition();
+    window.equipment_indices = {
+        "MAKE_RANGED": 999,
+        "MAKE_ATTACK": 999,
+        "MAKE_BODY": 999,
+        "MAKE_OFF_HAND": 999
+    };
+
+    function do_move(meters, degrees) {
+        require(["map_utils", "state", "net"], function(m, state, net) {
+            var you = state.getYouLocationElement();
+            var you_marker = m.getMarkerForElement(you);
+            var dest = new google.maps.geometry.spherical.computeOffset(you_marker.getPosition(), meters, degrees);
+            you.movementSpeed > 0 && (m.startMoveMarker(you_marker, dest, function() {}), require(["game"], function(game) {
+                game.movePlayerAnalog(you, dest, m._currentTargetName)
+            }));
+        });
+    }
+
+    function do_move_to(meters, degrees) {
+        require(["map_utils", "state", "net"], function(m, state, net) {
+            var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
+            var dest = new google.maps.geometry.spherical.computeOffset(center, meters, degrees);
+            var you = state.getYouLocationElement();
+            var you_marker = m.getMarkerForElement(you);
+            you.movementSpeed > 0 && (m.startMoveMarker(you_marker, dest, function() {}), require(["game"], function(game) {
+                game.movePlayerAnalog(you, dest, m._currentTargetName)
+            }));
+        });
+    }
+
+    $(document).bind("keydown", function(e) {
+
+        if (e.target.tagName.toUpperCase() == "INPUT") {
+            return;
+        }
+        if (e.target.tagName.toUpperCase() == "TEXTAREA") {
+            return;
+        }
+        var keyPress = e.which;
+        if (e.shiftKey == true) {
+            keyPress += 1000;
+        }
+        if (e.ctrlKey == true) {
+            keyPress += 10000;
+        }
+        if (keyPress == 219 || keyPress == 1081) {
+            do_self_action("HEAL");
+        };
+        if (keyPress == 221 || keyPress == 1087) {
+            do_self_action("TAUNT");
+        };
+        if (keyPress == 1070) {
+            do_build("FLAG");
+        };
+        if (keyPress == 1066) {
+            do_build("BUOY");
+        };
+        if (keyPress == 1068) {
+            do_dragon_pet_action("DRAGON_TAIL_SWING");
+        };
+        if (keyPress == 1067) {
+            do_mouse_hover_action("SHIELD_CHARGE");
+        };
+        if (keyPress == 1088) {
+            do_mouse_hover_action("BOMB");
+        };
+        if (keyPress == 1084) {
+            do_estate_pet_action("DOG_TRACK_LEATHER");
+        };
+        if (keyPress == 81) {
+            do_rotate_equip("MAKE_RANGED");
+        }
+        if (keyPress == 87) {
+            do_rotate_equip("MAKE_ATTACK");
+        }
+        if (keyPress == 69) {
+            do_rotate_equip("MAKE_BODY");
+        }
+        if (keyPress == 82) {
+            do_rotate_equip("MAKE_OFF_HAND");
+        }
+        if (keyPress == 100) {
+            do_move_to(meters = 550, degrees = 270);
+        }
+        if (keyPress == 104) {
+            do_move_to(meters = 550, degrees = 0);
+        }
+        if (keyPress == 102) {
+            do_move_to(meters = 550, degrees = 90);
+        }
+        if (keyPress == 98) {
+            do_move_to(meters = 550, degrees = 180);
+        }
+        if (keyPress == 101) {
+            do_move_to(meters = 0, degrees = 0);
+        }
+    });
+})();
