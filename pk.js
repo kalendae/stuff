@@ -15,7 +15,7 @@ javascript: (function() {
     {'3' : []}
   ];
 
-  window.do_not_hunt_list = ["skeleton","golem","troll","monk","larva"];
+  window.do_not_hunt_list = ["skeleton","golem","troll","monk","larva","nosferatu"];
   /* TODO: get actual info names for golems and trolls */
   window.flag_history = [];
   var auto_chop = false;
@@ -172,6 +172,10 @@ javascript: (function() {
     return has_info;
   }
 
+  function is_siren_songed() { /* needs to be tested */
+    return ($("img[src='http://content.parallelkingdom.com/buff_siren_song.png']").length > 0);
+  }
+
   function is_aggressive() {
     return ($("#interface-status-new #interface-picture img[src='http://content.parallelkingdom.com/status_aggressive.png']").length > 0);
   }
@@ -237,7 +241,7 @@ javascript: (function() {
   }
 
   function id_for_element(e) {
-    return parseInt(e.elementId.split("2500000000")[1].replace(/\D/g, ''), 10);
+    return parseInt(e.elementId.split("00000000")[1].replace(/\D/g, ''), 10);
   }
 
   function element_exist_in_element_array(e, arr) {
@@ -447,26 +451,24 @@ javascript: (function() {
       var enemies = [];
       var monsters = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter) {
+        if (element_has_action(v.getElement(), 'ATTACK') && get_element_action(v.getElement(),"ATTACK").prompt != true ) {
           if (v.getElement().elmentId.indexOf("Mon") != -1) {
-
+            monsters.push(v.getElement());
           } else if (v.getElement().elmentId.indexOf("Chr") != -1) {
-
-          }
-          var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
-          if (dist < 50) {
-            window.immediate_monsters.push(v.getElement());
+            enemies.push(v.getElement());
           }
         }
       });
-      if (window.immediate_monsters.length > 0) {
-        var target_action = $.grep(window.immediate_monsters[0].actions, function(n, i) {
-          return (n.command == 'ATTACK');
-        })[0];
-        $(document).trigger("action.element.doAction", [window.immediate_monsters[0], target_action]);
+
+      if (enemies.length > 0) {
+        enemies = sort_elements_by_distance(m, state.getYouLocationElement(), enemies);
+        $(document).trigger("action.element.doAction", [enemies[0], get_element_action(enemies[0],"ATTACK")]);
+        attacked = true;
+      } else if (monsters.length > 0) {
+        monsters = sort_elements_by_distance(m, state.getYouLocationElement(), monsters);
+        $(document).trigger("action.element.doAction", [monsters[0], get_element_action(monsters[0],"ATTACK")]);
         attacked = true;
       }
-
     });
     return attacked;
   }
@@ -563,7 +565,7 @@ javascript: (function() {
           function(n, i) {
             return (n.command == 'WARP_TO_BUILDING');
           }).length > 0) {
-          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate" || v.getElement().name == "SentientConstruct") {
+          if (v.getElement().name == "kalendae" || v.getElement().name == "Intricate" || v.getElement().name == "SentientConstruct" || v.getElement().name == "SemolinaPilchard") {
             var dist = google.maps.geometry.spherical.computeDistanceBetween(center, v._position);
             if (dist < 10) {
               window.current_flag.push(v.getElement());
@@ -760,7 +762,7 @@ javascript: (function() {
       do_move(50, Math.floor(Math.random() * 360));
     }
     if (!is_aggressive()) {
-      if (repair_gear_if_needed(50)) {
+      if (repair_gear_if_needed(80)) {
         leatherTimer = -3;
         return;
       }
