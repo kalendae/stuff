@@ -1,7 +1,5 @@
 javascript: (function() {
   /* todos:
-   -1) need to stop and email if another char shows up
-   1) char specific eg some needs to skip black_pool but not others
    2) time check, how long have been at this circle if longer than 6 minutes, reset and jump
    3) auto send gold when over certain limit
    features:
@@ -15,8 +13,7 @@ javascript: (function() {
     {'3' : []}
   ];
 
-  window.do_not_hunt_list = ["skeleton","golem","troll","monk","larva","nosferatu"];
-  /* TODO: get actual info names for golems and trolls */
+  window.do_not_hunt_list = ["skeleton","monk","larva","vampire","vampire_blood_hungry"];
   window.flag_history = [];
   var auto_chop = false;
   var auto_pick = false;
@@ -26,6 +23,7 @@ javascript: (function() {
   var auto_garden = false;
   var auto_explore = false;
   var auto_leather = false;
+  var auto_heal = true;
   var chopTimer = 9;
   var pickTimer = 9;
   var buildTimer = 0;
@@ -128,14 +126,13 @@ javascript: (function() {
       auto_garden = false;
       auto_explore = false;
       stopped = true;
-      /*do_message_action("kalendae", ["Hey you there","yo","yoyoyo","how goe it","u there?","whatsup","sup","word","bacon"][Math.floor(Math.random() * 9)]);*/
     }
     return stopped;
   }
 
   function item_with_display_string_including(str) {
     require(["state"], function(state) {
-      
+
     });
   }
 
@@ -172,7 +169,7 @@ javascript: (function() {
     return has_info;
   }
 
-  function is_siren_songed() { /* needs to be tested */
+  function is_siren_songed() {
     return ($("img[src='http://content.parallelkingdom.com/buff_siren_song.png']").length > 0);
   }
 
@@ -351,6 +348,55 @@ javascript: (function() {
     return exist;
   }
 
+  function golems_in_circle() {
+    var exist = false;
+    require(["map_utils"], function(m) {
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_info(v.getElement(), "golem_axeman")) {
+          exist = true;
+          return
+        }
+      });
+    });
+    return exist;
+  }
+
+  function golems_not_close_or_hurt() {
+    var exist = false;
+    require(["map_utils", "state"], function(m, state) {
+      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_info(v.getElement(), "golem_axeman")) {
+          if (v.getElement().hp / v.getElement().hpMax < 0.8) {
+            exist = true;
+            return;
+          }
+          var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
+          if (dist > 300) {
+            exist = true;
+            return;
+          }
+        }
+      });
+    });
+    return exist;
+  }
+
+  function move_to_center_if_not_close() {
+    var moved = false;
+    require(["map_utils", "state", "net"], function(m, state, net) {
+      var center = new google.maps.LatLng(m._centerLocation.lat, m._centerLocation.lng);
+      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      var dis = google.maps.geometry.spherical.computeDistanceBetween(my_pos, center);
+      if (dis > 150) {
+        moved = true;
+        do_move_to(0, 0);
+      }
+    });
+    return moved;
+  }
+
+
   function monster_count() {
     var count = 0;
     require(["map_utils"], function(m) {
@@ -451,10 +497,10 @@ javascript: (function() {
       var enemies = [];
       var monsters = [];
       $.each(m.markerElementMap, function(k, v) {
-        if (element_has_action(v.getElement(), 'ATTACK') && get_element_action(v.getElement(),"ATTACK").prompt != true ) {
-          if (v.getElement().elmentId.indexOf("Mon") != -1) {
+        if (element_has_action(v.getElement(), 'ATTACK') && get_element_action(v.getElement(), "ATTACK").prompt != true) {
+          if (v.getElement().elementId.indexOf("Mon") != -1) {
             monsters.push(v.getElement());
-          } else if (v.getElement().elmentId.indexOf("Chr") != -1) {
+          } else if (v.getElement().elementId.indexOf("Chr") != -1) {
             enemies.push(v.getElement());
           }
         }
@@ -462,11 +508,11 @@ javascript: (function() {
 
       if (enemies.length > 0) {
         enemies = sort_elements_by_distance(m, state.getYouLocationElement(), enemies);
-        $(document).trigger("action.element.doAction", [enemies[0], get_element_action(enemies[0],"ATTACK")]);
+        $(document).trigger("action.element.doAction", [enemies[0], get_element_action(enemies[0], "ATTACK")]);
         attacked = true;
       } else if (monsters.length > 0) {
         monsters = sort_elements_by_distance(m, state.getYouLocationElement(), monsters);
-        $(document).trigger("action.element.doAction", [monsters[0], get_element_action(monsters[0],"ATTACK")]);
+        $(document).trigger("action.element.doAction", [monsters[0], get_element_action(monsters[0], "ATTACK")]);
         attacked = true;
       }
     });
@@ -600,12 +646,38 @@ javascript: (function() {
     return jumped;
   }
 
+  function do_attack_immediate_monsters() {
+    var attacked = false;
+    require(["map_utils", "state"], function(m, state) {
+      window.immediate_monsters = [];
+      var my_pos = m.getMarkerForElement(state.getYouLocationElement()).getPosition();
+      $.each(m.markerElementMap, function(k, v) {
+        if (element_has_action(v.getElement(), 'ATTACK') && !v._isCharacter) {
+          var dist = google.maps.geometry.spherical.computeDistanceBetween(my_pos, v._position);
+          if (dist < 50) {
+            window.immediate_monsters.push(v.getElement());
+          }
+        }
+      });
+      if (window.immediate_monsters.length > 0) {
+        var target_action = $.grep(window.immediate_monsters[0].actions, function(n, i) {
+          return (n.command == 'ATTACK');
+        })[0];
+        $(document).trigger("action.element.doAction", [window.immediate_monsters[0], target_action]);
+        attacked = true;
+      }
+
+    });
+    return attacked;
+  }
+
   var garden_pattern = [
     [0,180],
     [0,360],
     [0,525],
     [15,525],
     [30,525],
+    [45,525],
     [30,360],
     [30,180],
     [60,180],
@@ -613,6 +685,7 @@ javascript: (function() {
     [60,525],
     [75,525],
     [90,525],
+    [105,525],
     [90,360],
     [90,180],
     [120,180],
@@ -620,6 +693,7 @@ javascript: (function() {
     [120,525],
     [135,525],
     [150,525],
+    [165,525],
     [150,360],
     [150,180],
     [180,180],
@@ -627,6 +701,7 @@ javascript: (function() {
     [180,525],
     [195,525],
     [210,525],
+    [225,525],
     [210,360],
     [210,180],
     [240,180],
@@ -634,6 +709,7 @@ javascript: (function() {
     [240,525],
     [255,525],
     [270,525],
+    [285,525],
     [270,360],
     [270,180],
     [300,180],
@@ -641,6 +717,7 @@ javascript: (function() {
     [300,525],
     [315,525],
     [330,525],
+    [345,525],
     [330,360],
     [330,180]
   ];
@@ -679,6 +756,21 @@ javascript: (function() {
     });
   }
 
+  function do_juke() {
+    do_move(50, Math.floor(Math.random() * 360));
+  }
+
+  function jump_next_with_golems() {
+    var moved = move_to_center_if_not_close();
+    if (!moved) {
+      if (golems_not_close_or_hurt()) {
+        do_juke();
+      } else {
+        do_jump_to_next_flag();
+      }
+    }
+  }
+
   function do_auto_hunt() {
     if (stop_if_not_alone()) {
       return;
@@ -698,11 +790,15 @@ javascript: (function() {
       return;
     }
     if (uTimer % 500 == 0) {
-      do_move(50, Math.floor(Math.random() * 360));
+      do_juke();
     }
     if (check_for_monsters(['siren','yanglong'])) {
       huntTimer = -5;
-      do_jump_to_next_flag();
+      if (golems_in_circle()) {
+        jump_next_with_golems();
+      } else {
+        do_jump_to_next_flag();
+      }
       return;
     }
     if (!is_aggressive()) {
@@ -725,7 +821,11 @@ javascript: (function() {
         huntTimer = -9;
         var mined = mine_closest();
         if (!mined) {
-          do_jump_to_next_flag(1);
+          if (golems_in_circle()) {
+            jump_next_with_golems();
+          } else {
+            do_jump_to_next_flag(1);
+          }
         }
       }
       return
@@ -842,7 +942,6 @@ javascript: (function() {
     if (stop_if_not_alone()) {
       return;
     }
-
     require(["map_utils", "state", "net"], function(m, state, net) {
       var jumped = do_jump_to_next_flag();
       if (!jumped) {
@@ -854,8 +953,15 @@ javascript: (function() {
           do_move_to(550, 225);
         } else {
           var attacked = do_attack_immediate_monsters();
-          if (!attacked) {
+          if (!attacked && !is_aggressive()) {
+            if (repair_gear_if_needed(50)) {
+              buildTimer = -3;
+              return;
+            }
             do_build("BUOY");
+            buildTimer = 5;
+          } else {
+            buildTimer = 11;
           }
         }
       } else {
@@ -1051,6 +1157,11 @@ javascript: (function() {
       $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:12px;\">default</div>");
     }
     var str = "U: " + uTimer + " ";
+    if (auto_heal) {
+      str += "<span style=\"color:green;font-weight:bold;\">heal</span>";
+    } else {
+      str += "<span style=\"color:#999;\">heal</span>"
+    }
     if (auto_chop) {
       str += "<span style=\"color:green;font-weight:bold;\">chop:" + chopTimer + "</span>";
     } else {
@@ -1094,7 +1205,9 @@ javascript: (function() {
     setTimeout(auto_do_tick, 500);
     update_status();
     uTimer += 1;
-    check_health();
+    if (auto_heal) {
+      check_health();
+    }
     if (auto_chop) {
       chopTimer += 1;
       if (chopTimer > 0) {
@@ -1290,6 +1403,9 @@ javascript: (function() {
     if (keyPress == 112) {
       do_self_action('HEAL');
     }
+    if (keyPress == 1112) {
+      auto_heal = !auto_heal;
+    }
     if (keyPress == 113) {
       do_self_action('TAUNT');
     }
@@ -1312,8 +1428,11 @@ javascript: (function() {
     if (keyPress == 1066) {
       do_build("BUOY");
     }
-    if (keyPress == 1067) {
+    if (keyPress == 67) {
       do_mouse_hover_action("SHIELD_CHARGE");
+    }
+    if (keyPress == 78) {
+      do_mouse_hover_action("NET");
     }
     if (keyPress == 100) {
       do_move_to(meters = 550, degrees = 270);
@@ -1368,7 +1487,7 @@ javascript: (function() {
     if (keyPress == 1084) {
       do_estate_pet_action("DOG_TRACK_LEATHER");
     }
-    
+
     /* 0 to 9 */
     if (keyPress >= 48 && keyPress <= 57) {
 
