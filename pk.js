@@ -7,12 +7,6 @@ javascript: (function() {
    switch equipped items
    */
 
-  var equipment_sets = [
-    {'1' : ['Dishonor','Disgrace','Diamond Honed Magnathere Horned Shield','Diamond Poison Ornament Sling','Grand Ring of the Silent Sword','Grand Ring of the Oozing Nautaloid']},
-    {'2' : []},
-    {'3' : []}
-  ];
-
   window.do_not_hunt_list = ["skeleton","monk","larva","vampire","vampire_blood_hungry"];
   window.flag_history = [];
   var auto_chop = false;
@@ -39,6 +33,7 @@ javascript: (function() {
     "MAKE_BODY": 999,
     "MAKE_OFF_HAND": 999
   };
+  var override_alone_stop = false;
 
   function do_self_action(action_name) {
     require(["state", "net"], function(state, net) {
@@ -116,7 +111,7 @@ javascript: (function() {
 
   function stop_if_not_alone() {
     var stopped = false;
-    if (player_count() > 1) {
+    if (player_count() > 1 && !override_alone_stop) {
       auto_chop = false;
       auto_pick = false;
       auto_build = false;
@@ -282,6 +277,29 @@ javascript: (function() {
           return;
         }
       });
+    });
+  }
+
+  function unequip_all_rings() {
+    require(["map_utils", "state","net"], function(m, state, net) {
+      $.each(state.data.items, function(i, n) {
+        if (element_has_action(n, "CHECK_RING_BONUSES") && element_has_action(n, "UNEQUIP")) {
+          do_action_to("UNEQUIP", n);
+        }
+      });
+    });
+  }
+
+  function equip_ring_pair(r1, r2) {
+    require(["map_utils", "state","net"], function(m, state, net) {
+      var rings = [];
+      $.each(state.data.items, function(i, n) {
+        if (element_has_action(n, "CHECK_RING_BONUSES")) {
+          rings.push(n);
+        }
+      });
+      do_action_to("MAKE_FINGER",rings[r1]);
+      do_action_to("MAKE_FINGER",rings[r2]);
     });
   }
 
@@ -1157,6 +1175,11 @@ javascript: (function() {
       $("body").append("<div id=\"sstatus\" style=\"position:absolute;top:38px;right:15px;z-index:99999;background-color:white;padding:3px;opacity:.5;font-family:courier;font-size:12px;\">default</div>");
     }
     var str = "U: " + uTimer + " ";
+    if (override_alone_stop) {
+      str += "<span style=\"color:#999;\">alone</span>";
+    } else {
+      str += "<span style=\"color:green;font-weight:bold;\">alone</span>";
+    }
     if (auto_heal) {
       str += "<span style=\"color:green;font-weight:bold;\">heal</span>";
     } else {
@@ -1487,7 +1510,22 @@ javascript: (function() {
     if (keyPress == 1084) {
       do_estate_pet_action("DOG_TRACK_LEATHER");
     }
-
+    if (keyPress == 49) {
+      unequip_all_rings();
+      equip_ring_pair(0,1);
+    }
+    if (keyPress == 50) {
+      unequip_all_rings();
+      equip_ring_pair(0,6);
+    }
+    if (keyPress == 51) {
+      unequip_all_rings();
+      equip_ring_pair(2,3);
+    }
+    if (keyPress == 52) {
+      unequip_all_rings();
+      equip_ring_pair(2,4);
+    }
     /* 0 to 9 */
     if (keyPress >= 48 && keyPress <= 57) {
 
@@ -1519,6 +1557,9 @@ javascript: (function() {
       do_rotate_equip("MAKE_OFF_HAND");
     }
 
+    if (keyPress == 1046) {
+      override_alone_stop = !override_alone_stop;
+    }
 
   });
   auto_do_tick();
